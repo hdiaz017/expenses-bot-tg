@@ -19,6 +19,7 @@ type User struct {
 	ID             int64
 	TelegramUserID int64
 	WeeklyBudget   float64
+	MonthlyBudget  float64
 }
 
 func initDB() (*sql.DB, error) {
@@ -32,7 +33,8 @@ func initDB() (*sql.DB, error) {
 	CREATE TABLE IF NOT EXISTS users (
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
 		telegram_user_id INTEGER UNIQUE NOT NULL,
-		weekly_budget REAL NOT NULL DEFAULT 0
+		weekly_budget REAL NOT NULL DEFAULT 0,
+		monthly_budget REAL DEFAULT 0
 	);
 	`
 
@@ -160,4 +162,33 @@ func getWeeklySpent(
 	).Scan(&spent)
 
 	return spent, err
+}
+
+// Obtener total gastado en el mes actual
+func getMonthlySpent(db *sql.DB, userID int64) (float64, error) {
+	var total float64
+	query := `SELECT COALESCE(SUM(amount), 0) FROM expenses 
+              WHERE user_id = ? AND strftime('%Y-%m', spent_at) = strftime('%Y-%m', 'now')`
+
+	err := db.QueryRow(query, userID).Scan(&total)
+	return total, err
+}
+
+// Obtener el presupuesto mensual del usuario
+func getMonthlyBudget(db *sql.DB, userID int64) (float64, error) {
+	var budget float64
+	query := `SELECT monthly_budget FROM users WHERE id = ?`
+
+	err := db.QueryRow(query, userID).Scan(&budget)
+	return budget, err
+}
+
+// Guardar el presupuesto mensual
+func setMonthlyBudget(db *sql.DB, userID int64, budget float64) error {
+	_, err := db.Exec(`UPDATE users SET monthly_budget = ? WHERE id = ?`, budget, userID)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
